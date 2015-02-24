@@ -37,3 +37,4 @@ or binaries with elevated privileges on most UNIX systems.
 * Optional protocol specification in remaps.
 * Filtering based on IP address as well as protocol.
 * Intercepting `connect()` calls and altering remote endpoints.
+* Get rid of non-POSIX SO_PROTOCOL socket option.
