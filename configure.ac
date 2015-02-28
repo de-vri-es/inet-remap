@@ -10,7 +10,7 @@ AM_PROG_AR
 LT_INIT()
 AC_CHECK_HEADERS([arpa/inet.h netinet/in.h sys/socket.h])
 AC_SEARCH_LIBS([dlsym], [dl])
-
+AC_CONFIG_HEADERS([src/config.h])
 
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
