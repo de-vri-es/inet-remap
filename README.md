@@ -19,12 +19,12 @@ You can specify multiple remappings by separating them with a semicolon (`;`) or
 
 For example, to remap TCP port 7331 to 1337:
 ```
-LD_PRELOAD=libinet-remap-preload.so INET_REMAP=tcp:7331:1337 nc -l 1337
+LD_PRELOAD=libinet-remap-preload.so INET_REMAP=tcp:7331:1337 ./program
 ```
 
 Or remap multiple ports:
 ```
-LD_PRELOAD=libinet-remap-preload.so INET_REMAP=tcp:503:2503;udp:53:2053 nc -l 1337
+LD_PRELOAD=libinet-remap-preload.so INET_REMAP=tcp:503:2503;udp:53:2053 ./program
 ```
 
 Note that as a security precaution `LD_PRELOAD` and thus `inet-remap` do not work with setuid binaries
