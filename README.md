@@ -7,13 +7,13 @@ that just has bind to some specific port.
 For whatever reason, you may want to have it bind to a different port.
 In such cases, `inet-remap` can help you bend that closed source binary to your will.
 
-Use cases include binding to unprivileged ports
-and running the same application twice, each binding to different ports.
+Use cases include forcing an application to bind to an unprivileged port
+and running the same application twice, each instance binding to different ports.
 
 `inet-remap` uses `LD_PRELOAD` to intercept `bind()` calls.
 When a `bind()` call is intercepted, the protocol and port number used
 are looked up in a table parsed from the `INET_REMAP` environment variable.
-You can specify a remapping as `protocol:old_port:new:port`,
+You can specify a remapping as `protocol:old_port:new_port`,
 where `protocol` can be either `tcp` or `udp`.
 You can specify multiple remappings by separating them with a semicolon (`;`) or a space.
 
