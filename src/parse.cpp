@@ -17,6 +17,8 @@
  *  along with inet_remap.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "parse.hpp"
+
 #include <string>
 #include <utility>
 #include <iostream>
@@ -25,12 +27,10 @@ extern "C" {
 #include <netinet/in.h>
 }
 
-#include "parse.hpp"
-
 namespace inet_remap {
 
 namespace {
-	bool is_digit(char c) {
+	bool isDigit(char c) {
 		return c >= '0' && c <= '9';
 	}
 
@@ -40,66 +40,59 @@ namespace {
 		} else if (protocol == "udp") {
 			return IPPROTO_UDP;
 		} else {
-			std::cerr << "Unrecognized protocol: " << protocol << "\n";
-			return -1;
+			throw std::runtime_error("Unrecognized protocol: " + protocol);
 		}
+	}
+
+	bool isSeperator(char c) {
+		return c == ' ' || c == ',' || c == ';';
 	}
 
 }
 
-/// Parse a rewrite map from a string.
-std::map<key, int> parse_map(char const * data) {
-	std::map<key, int> result;
-
+std::pair<key, int> parseEntry(char const * data, char const * & new_begin) {
 	std::string protocol;
 	int old_port = 0;
 	int new_port = 0;
-	int stage    = 0;
 
-	for (char const * i = data; *i != 0; ++i) {
-		char c = *i;
-		// Protocol name
-		if (stage == 0) {
-			if (c == ':') {
-				++stage;
-			} else {
-				protocol += c;
-			}
+	char const * finger = data;
 
-		// Original port
-		} else if (stage == 1) {
-			if (c == ':') {
-				++stage;
-			} else if (is_digit(c)) {
-				old_port = old_port * 10 + (c - '0');
-			} else {
-				std::cerr << "Unexpected character in remap port: " << int(c) << "\n";
-				return std::map<key, int>();
-			}
+	// Parse protocol.
+	for (; *finger != 0 && *finger != ':'; ++finger) {
+		protocol.push_back(*finger);
+	}
+	++finger;
 
-		// New port.
-		} else if (stage == 2) {
-			if (c == ';' || c ==  ' ' || c == ',') {
-				result.insert(std::make_pair(key(toProto(protocol), old_port), new_port));
-				protocol.clear();
-				old_port = 0;
-				new_port = 0;
-				stage    = 0;
-			} else if (is_digit(c)) {
-				new_port = new_port * 10 + (c - '0');
-			} else {
-				std::cerr << "Unexpected character in remap port: " << int(c) << "\n";
-				return std::map<key, int>();
-			}
-
+	// Parse source port.
+	for (; *finger != 0 && *finger != ':'; ++finger) {
+		if (isDigit(*finger)) {
+			old_port = old_port * 10 + (*finger - '0');
+		} else {
+			throw std::runtime_error(std::string("Unexpected character in remap port: ") + *finger + " ("+ std::to_string(int(*finger)) + ")");
 		}
 	}
+	++finger;
 
-	// In case the string didn't end with a space.
-	if (stage == 2) {
-		result.insert(std::make_pair(key(toProto(protocol), old_port), new_port));
+	// New port.
+	for (; *finger != 0 && !isSeperator(*finger); ++finger) {
+		if (isDigit(*finger)) {
+			new_port = new_port * 10 + (*finger - '0');
+		} else {
+			throw std::runtime_error(std::string("Unexpected character in remap port: ") + *finger + " ("+ std::to_string(int(*finger)) + ")");
+		}
 	}
+	++finger;
 
+	new_begin = finger;
+	return std::make_pair(key(toProto(protocol), old_port), new_port);
+}
+
+/// Parse a rewrite map from a string.
+std::map<key, int> parseMap(char const * data) {
+	std::map<key, int> result;
+
+	char const * finger = data;
+	while (*finger != 0) result.insert(parseEntry(finger, finger));
 	return result;
 }
 

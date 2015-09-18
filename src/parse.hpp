@@ -18,13 +18,22 @@
  */
 
 #pragma once
+
+#include "key.hpp"
+
 #include <map>
 
-#include "inet_remap.hpp"
 
 namespace inet_remap {
 
+/// Parse a remap entry from a string.
+std::pair<key, int> parseEntry(char const * data, char const * & new_begin);
+inline std::pair<key, int> parseEntry(char const * data) {
+	char const * finger;
+	return parseEntry(data, finger);
+}
+
 /// Parse a remap map from a string.
-std::map<key, int> parse_map(char const * data);
+std::map<key, int> parseMap(char const * data);
 
 }

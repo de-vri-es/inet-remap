@@ -1,83 +1,91 @@
-/*
- *  Copyright 2015 Maarten de Vries <maarten@de-vri.es>
- *
- *  This file is part of inet_remap.
- *
- *  inet_remap is free software: you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License as published by
- *  the Free Software Foundation, either version 3 of the License, or
- *  (at your option) any later version.
- *
- *  inet_remap is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with inet_remap.  If not, see <http://www.gnu.org/licenses/>.
- */
+#include "parse.hpp"
 
+#include <vector>
 #include <map>
 #include <iostream>
-#include <cstdlib>
-#include <cstring>
-#include <cerrno>
 
 extern "C" {
-#include <dlfcn.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+#include <unistd.h>
 #include <netinet/in.h>
 }
 
-#include "inet_remap.hpp"
-#include "parse.hpp"
-
 namespace {
+	void usage(char const * name) {
+		std::cerr
+			<< "usage: " << name << " [options] command [command args]\n"
+			<< "\n"
+			<< "Options:\n"
+			<< "  -b protocol:old_port:new_port    Add a bind remap\n";
+	}
 
-	/// Map holding the remappings.
-	std::map<inet_remap::key, int> rewrite_map;
-
-	/// Original bind function.
-	int (*original_bind)(int, struct sockaddr const *, int);
-
-	/// Global object to perform one-time initialization.
-	struct Init {
-		Init() {
-			// Get the original bind.
-			original_bind = reinterpret_cast<int (*)(int, struct sockaddr const *, int)>(dlsym(RTLD_NEXT, "bind"));
-
-			// Parse the rewrite map from the environment.
-			rewrite_map = inet_remap::parse_map(getenv("INET_REMAP"));
+	char const * protocolToString(int protocol) {
+		switch (protocol) {
+			case IPPROTO_TCP: return "tcp";
+			case IPPROTO_UDP: return "tcp";
 		}
-	} _init;
+
+		// TODO: Maybe we should just throw when the protocol is unknown.
+		return "unk";
+	}
+
+	std::string remapsToString(std::map<inet_remap::key, int> const & remappings) {
+		std::string result;
+		result.reserve(remappings.size() * 18); // Heuristic guess.
+		for (auto const & entry : remappings) {
+			result.append(protocolToString(entry.first.protocol));
+			result.push_back(':');
+			result.append(std::to_string(entry.first.port));
+			result.push_back(':');
+			result.append(std::to_string(entry.second));
+			result.push_back(',');
+		}
+		return result;
+	}
 }
 
-extern "C" int bind(int fd, sockaddr const * address, socklen_t address_length) {
-	// Not an INET address or the rewrite map is empty?
-	// Skip lookup and call original bind without modifying the arguments.
-	if (address->sa_family != AF_INET || rewrite_map.empty()) {
-		return original_bind(fd, address, address_length);
+
+int main(int argc, char * * argv) {
+	if (argc < 2) {
+		usage(argv[0]);
+		return 0;
 	}
 
-	int protocol;
-	{
-		socklen_t length = sizeof(protocol);
-		if (getsockopt(fd, SOL_SOCKET, SO_PROTOCOL, &protocol, &length) != 0) {
-			std::cerr << "Failed to get socket protocol. Error " << errno << ": " << std::strerror(errno) << "\n";
-			return original_bind(fd, address, address_length);
+	std::map<inet_remap::key, int> remaps;
+	int option;
+	while (true) {
+		option = getopt(argc, argv, "+b:");
+		if (option == -1) break;
+		switch (option) {
+		case 'b':
+			try {
+				remaps.insert(inet_remap::parseEntry(optarg));
+			} catch (std::exception const & e) {
+				std::cerr << e.what() << std::endl;
+				return -1;
+			}
+			break;
+		case ':':
+		case '?':
+			usage(argv[0]);
+			return 1;
 		}
 	}
 
-	sockaddr_in inet_address = reinterpret_cast<sockaddr_in const &>(*address);
-	int port = ntohs(inet_address.sin_port);
-	std::map<inet_remap::key, int>::iterator entry = rewrite_map.find(inet_remap::key(protocol, port));
+	if (optind >= argc) {
+		std::cerr << argv[0] << ": no command specified.\n\n";
+		usage(argv[0]);
+		return 1;
+	}
 
-	// Port was not in the map? Call original bind without modifying the arguments.
-	if (entry == rewrite_map.end()) return original_bind(fd, address, address_length);
+	setenv("INET_REMAP", remapsToString(remaps).c_str(), true);
 
-	// Change port and pass modified address to original bind.
-	inet_address.sin_port = htons(entry->second);
-	return original_bind(fd, reinterpret_cast<sockaddr *>(&inet_address), address_length);
+	char const * ld_preload_env = getenv("LD_PRELOAD");
+	std::string ld_preload = std::string(PRELOAD_PATH);
+	if (ld_preload_env && ld_preload_env[0]) {
+		ld_preload.push_back(':');
+		ld_preload.append(ld_preload_env);
+	}
+
+	setenv("LD_PRELOAD", ld_preload.c_str(), true);
+	execvp(argv[optind], &argv[optind]);
 }
