@@ -1,5 +1,7 @@
 ACLOCAL_AMFLAGS = -I m4
 
+EXTRA_DIST=src/key.hpp src/parse.hpp
+
 bin_PROGRAMS = inet-remap
 inet_remap_SOURCES = src/inet_remap.cpp src/parse.cpp
 inet_remap_CXXFLAGS = $(AM_CXXFLAGS)
