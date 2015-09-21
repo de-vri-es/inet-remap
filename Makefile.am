@@ -9,4 +9,4 @@ inet_remap_CPPFLAGS = ${AM_CPPFLAGS} -DPRELOAD_PATH=\"${libdir}/libinet-remap-pr
 
 lib_LTLIBRARIES = libinet-remap-preload.la
 libinet_remap_preload_la_SOURCES = src/inet_remap_preload.cpp src/parse.cpp
-libinet_remap_preload_la_LDFLAGS = -shared
+libinet_remap_preload_la_LDFLAGS = -shared -version-info 1:0:0

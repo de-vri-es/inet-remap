@@ -7,7 +7,7 @@ AC_CONFIG_SRCDIR([src/inet_remap.cpp])
 AC_PROG_CXX
 AM_PROG_AR
 
-LT_INIT()
+LT_INIT([disable-static])
 AC_CHECK_HEADERS([arpa/inet.h netinet/in.h sys/socket.h])
 AC_SEARCH_LIBS([dlsym], [dl])
 AC_CONFIG_HEADERS([src/config.h])
