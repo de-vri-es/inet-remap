@@ -38,6 +38,7 @@ namespace {
 
 	/// Map holding the remappings.
 	std::map<inet_remap::key, int> rewrite_map;
+	bool verbose = false;
 
 	/// Original bind function.
 	int (*original_bind)(int, struct sockaddr const *, int);
@@ -47,6 +48,10 @@ namespace {
 		Init() {
 			// Get the original bind.
 			original_bind = reinterpret_cast<int (*)(int, struct sockaddr const *, int)>(dlsym(RTLD_NEXT, "bind"));
+
+			// Set debug bool depending on INET_REMAP_DEBUG variable.
+			char const * debug_env = getenv("INET_REMAP_VERBOSE");
+			verbose = debug_env && debug_env[0] != 0 && debug_env[0] != '0';
 
 			// Parse the rewrite map from the environment.
 			try {
@@ -70,7 +75,7 @@ extern "C" int bind(int fd, sockaddr const * address, socklen_t address_length) 
 	{
 		socklen_t length = sizeof(protocol);
 		if (getsockopt(fd, SOL_SOCKET, SO_PROTOCOL, &protocol, &length) != 0) {
-			std::cerr << "Failed to get socket protocol. Error " << errno << ": " << std::strerror(errno) << "\n";
+			if (verbose) std::cerr << "Failed to get socket protocol. Error " << errno << ": " << std::strerror(errno) << "\n";
 			return original_bind(fd, address, address_length);
 		}
 	}
@@ -80,9 +85,13 @@ extern "C" int bind(int fd, sockaddr const * address, socklen_t address_length) 
 	std::map<inet_remap::key, int>::iterator entry = rewrite_map.find(inet_remap::key(protocol, port));
 
 	// Port was not in the map? Call original bind without modifying the arguments.
-	if (entry == rewrite_map.end()) return original_bind(fd, address, address_length);
+	if (entry == rewrite_map.end()) {
+		if (verbose) std::cerr << "Passing through bind for " << protocol << ":" << port << ".\n";
+		return original_bind(fd, address, address_length);
+	}
 
 	// Change port and pass modified address to original bind.
 	inet_address.sin_port = htons(entry->second);
+	if (verbose) std::cerr << "Rebinding " << protocol << ":" << port << " to " << entry->second << " .\n";
 	return original_bind(fd, reinterpret_cast<sockaddr *>(&inet_address), address_length);
 }

@@ -15,7 +15,9 @@ namespace {
 			<< "usage: " << name << " [options] command [command args]\n"
 			<< "\n"
 			<< "Options:\n"
-			<< "  -b protocol:old_port:new_port    Add a bind remap\n";
+			<< "  -b protocol:old_port:new_port    Add a bind remap\n"
+			<< "  -v                               Print verbose messages\n"
+		;
 	}
 
 	char const * protocolToString(int protocol) {
@@ -50,10 +52,13 @@ int main(int argc, char * * argv) {
 		return 0;
 	}
 
+	bool verbose = false;
 	std::map<inet_remap::key, int> remaps;
-	int option;
+
+
+	// Parse command line options.
 	while (true) {
-		option = getopt(argc, argv, "+b:");
+		int option = getopt(argc, argv, "+b:v");
 		if (option == -1) break;
 		switch (option) {
 		case 'b':
@@ -64,6 +69,11 @@ int main(int argc, char * * argv) {
 				return -1;
 			}
 			break;
+
+		case 'v':
+			verbose = true;
+			break;
+
 		case ':':
 		case '?':
 			usage(argv[0]);
@@ -77,8 +87,11 @@ int main(int argc, char * * argv) {
 		return 1;
 	}
 
+	// Set environment for preloaded library.
+	if (verbose) setenv("INET_REMAP_VERBOSE", "1", true);
 	setenv("INET_REMAP", remapsToString(remaps).c_str(), true);
 
+	// Determine new LD_PRELOAD value.
 	char const * ld_preload_env = getenv("LD_PRELOAD");
 	std::string ld_preload = std::string(PRELOAD_PATH);
 	if (ld_preload_env && ld_preload_env[0]) {
@@ -86,6 +99,7 @@ int main(int argc, char * * argv) {
 		ld_preload.append(ld_preload_env);
 	}
 
+	// Set LD_PRELOAD and run the command.
 	setenv("LD_PRELOAD", ld_preload.c_str(), true);
 	execvp(argv[optind], &argv[optind]);
 }
