@@ -41,8 +41,8 @@ Note that as a security precaution `LD_PRELOAD` and thus `inet-remap` do not wor
 or binaries with elevated privileges on most UNIX systems.
 
 ## TODO:
-* Finish setting up build scripts.
-* Support IPv6.
+* ~~Finish setting up build scripts.~~
+* ~~Support IPv6.~~
 * Make protocol specification in remaps optional.
 * Support filtering based on IP address as well as protocol and port number.
 * Support for intercepting `connect()` calls to alter remote endpoints.

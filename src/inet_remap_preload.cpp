@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <cerrno>
+#include <cstdint>
 
 extern "C" {
 #include <dlfcn.h>
@@ -62,12 +63,56 @@ namespace {
 			}
 		}
 	} _init;
+
+	/// Check if a sockaddr is AF_INET or AF_INET6.
+	bool is_inet_addr(sockaddr const & address) {
+		return address.sa_family == AF_INET || address.sa_family == AF_INET6;
+	}
+
+	/// Get the port number of a AF_INET or AF_INET6 sockaddr, or 0.
+	std::uint16_t get_port(sockaddr const & address) {
+		switch (address.sa_family) {
+			case AF_INET:  return ntohs(reinterpret_cast<sockaddr_in  const &>(address).sin_port);
+			case AF_INET6: return ntohs(reinterpret_cast<sockaddr_in6 const &>(address).sin6_port);
+		}
+		return 0;
+	}
+
+	/// Set the port number on a AF_INET or AF_INET6 sockaddr.
+	void set_port(sockaddr & address, std::uint16_t port) {
+		switch (address.sa_family) {
+		case AF_INET:
+			reinterpret_cast<sockaddr_in &>(address).sin_port = ntohs(port);
+			break;
+		case AF_INET6:
+			reinterpret_cast<sockaddr_in6 &>(address).sin6_port = ntohs(port);
+			break;
+		}
+	}
+
+	/// Union capable of holding IPv4 and IPv6 socket addresses.
+	union address_t {
+		sockaddr generic;
+		sockaddr_in in;
+		sockaddr_in6 in6;
+	};
+
+	/// Copy a AF_INET or AF_INET6 address safely.
+	address_t copy_address(sockaddr const & address) {
+		address_t result;
+		switch (address.sa_family) {
+			case AF_INET:  result.in  = reinterpret_cast<sockaddr_in  const &>(address); break;
+			case AF_INET6: result.in6 = reinterpret_cast<sockaddr_in6 const &>(address); break;
+			default: result.generic = address; break;
+		}
+		return result;
+	}
 }
 
 extern "C" int bind(int fd, sockaddr const * address, socklen_t address_length) {
 	// Not an INET address or the rewrite map is empty?
 	// Skip lookup and call original bind without modifying the arguments.
-	if (address->sa_family != AF_INET || rewrite_map.empty()) {
+	if (!is_inet_addr(*address) || rewrite_map.empty()) {
 		return original_bind(fd, address, address_length);
 	}
 
@@ -80,8 +125,7 @@ extern "C" int bind(int fd, sockaddr const * address, socklen_t address_length) 
 		}
 	}
 
-	sockaddr_in inet_address = reinterpret_cast<sockaddr_in const &>(*address);
-	int port = ntohs(inet_address.sin_port);
+	int port = get_port(*address);
 	std::map<inet_remap::key, int>::iterator entry = rewrite_map.find(inet_remap::key(protocol, port));
 
 	// Port was not in the map? Call original bind without modifying the arguments.
@@ -91,7 +135,8 @@ extern "C" int bind(int fd, sockaddr const * address, socklen_t address_length) 
 	}
 
 	// Change port and pass modified address to original bind.
-	inet_address.sin_port = htons(entry->second);
+	address_t modified_address = copy_address(*address);
+	set_port(modified_address.generic, entry->second);
 	if (verbose) std::cerr << "Rebinding " << protocol << ":" << port << " to " << entry->second << " .\n";
-	return original_bind(fd, reinterpret_cast<sockaddr *>(&inet_address), address_length);
+	return original_bind(fd, &modified_address.generic, address_length);
 }

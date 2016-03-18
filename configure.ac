@@ -1,5 +1,5 @@
 AC_PREREQ([2.69])
-AC_INIT([inet_remap], [0.1], [Maarten de Vries <maarten@de-vri.es>])
+AC_INIT([inet_remap], [0.2], [Maarten de Vries <maarten@de-vri.es>])
 AC_CONFIG_MACRO_DIRS([m4])
 AM_INIT_AUTOMAKE([-Wall -Werror foreign subdir-objects])
 AC_CONFIG_SRCDIR([src/inet_remap.cpp])
